@@ -1,0 +1,11 @@
+[Unit]
+Description=Glances Web Server (ExtDash)
+After=network.target
+
+[Service]
+ExecStart=%h/.local/bin/glances -w
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

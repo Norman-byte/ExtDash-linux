@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>PC Dashboard</title>
+<style type="text/css">
+  html, body {
+    margin: 0;
+    padding: 0;
+    background-color: #05070d;
+    color: #ffffff;
+    font-family: "Courier New", monospace;
+    width: 100%;
+    height: 100%;
+  }
+  table.layout {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  td.cell {
+    width: 50%;
+    padding: 6px;
+    vertical-align: top;
+  }
+  .panel {
+    background-color: #0b1020;
+    border: 1px solid #1c2540;
+    border-radius: 10px;
+    padding: 4px 10px 16px 10px;
+    text-align: center;
+  }
+  .panel-title {
+    font-family: "Trebuchet MS", sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: left;
+    padding-left: 4px;
+    margin-bottom: 8px;
+  }
+  .title-cpu   { color: #5b9bd5; }
+  .title-gpu   { color: #8bc34a; }
+  .title-ram   { color: #cfa83c; }
+  .title-board { color: #c97b6e; }
+  .gauge-wrap {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 2px auto 6px auto;
+  }
+  .gauge-number {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100px;
+    height: 100px;
+    line-height: 100px;
+    text-align: center;
+    font-size: 30px;
+    font-weight: bold;
+  }
+  .bar-row {
+    width: 100%;
+    padding: 4px 4px;
+    font-size: 14px;
+    color: #b9c6e0;
+  }
+  .bar-top {
+    overflow: hidden;
+    margin-bottom: 2px;
+  }
+  .bar-label {
+    float: left;
+    letter-spacing: 1px;
+  }
+  .bar-value {
+    float: right;
+    font-weight: bold;
+  }
+  .bar-track {
+    background-color: #1c2540;
+    border-radius: 4px;
+    height: 6px;
+    width: 100%;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 6px;
+    width: 0%;
+    border-radius: 4px;
+  }
+  .fill-cpu   { background-color: #35e08a; }
+  .fill-gpu   { background-color: #c455ff; }
+  .fill-fan   { background-color: #4fd1ff; }
+  .fill-case-intake         { background-color: #2e8bd6; }
+  .fill-case-exhaust-upper  { background-color: #ff5722; }
+  .fill-case-exhaust-lower  { background-color: #ff8a65; }
+  .fill-temp  { background-color: #e8c15c; }
+  .fill-board { background-color: #c9975a; }
+  .fill-warm  { background-color: #d98a95; }
+  .fill-net   { background-color: #2de0c8; }
+  .footer {
+    text-align: center;
+    font-size: 12px;
+    color: #4a5578;
+    padding: 6px;
+  }
+  .good   { color: #35e08a; }
+  .warn   { color: #ffd23f; }
+  .bad    { color: #ff5566; }
+</style>
+</head>
+<body>
+
+<table class="layout">
+  <tr>
+    <td class="cell">
+      <div class="panel">
+        <div class="panel-title title-cpu">CPU <span style="font-size: 14px; opacity: 0.7;">i5-14400F</span></div>
+        <div class="gauge-wrap">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="43" fill="none" stroke="#1c2540" stroke-width="8"/>
+            <circle id="cpu_gauge" cx="50" cy="50" r="43" fill="none" stroke="#35e08a" stroke-width="8"
+                    stroke-dasharray="270.2" stroke-dashoffset="270.2"
+                    transform="rotate(-90 50 50)" stroke-linecap="round"/>
+          </svg>
+          <div class="gauge-number" id="cpu_load_text">--%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">TEMP</span><span class="bar-value" id="cpu_temp">--°C</span></div>
+          <div class="bar-track"><div class="bar-fill fill-temp" id="cpu_temp_bar"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">FAN</span><span class="bar-value" id="cpu_fan">--%</span></div>
+          <div class="bar-track"><div class="bar-fill fill-fan" id="cpu_fan_bar"></div></div>
+        </div>
+      </div>
+    </td>
+    <td class="cell">
+      <div class="panel">
+        <div class="panel-title title-gpu">GPU <span style="font-size: 14px; opacity: 0.7;">GTX-1060/6GB</span></div> 
+        <div class="gauge-wrap">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="43" fill="none" stroke="#1c2540" stroke-width="8"/>
+            <circle id="gpu_gauge" cx="50" cy="50" r="43" fill="none" stroke="#c455ff" stroke-width="8"
+                    stroke-dasharray="270.2" stroke-dashoffset="270.2"
+                    transform="rotate(-90 50 50)" stroke-linecap="round"/>
+          </svg>
+          <div class="gauge-number" id="gpu_load_text">--%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">TEMP</span><span class="bar-value" id="gpu_temp">--°C</span></div>
+          <div class="bar-track"><div class="bar-fill fill-temp" id="gpu_temp_bar"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">FAN</span><span class="bar-value" id="gpu_fan">--%</span></div>
+          <div class="bar-track"><div class="bar-fill fill-fan" id="gpu_fan_bar"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">VRAM</span><span class="bar-value" id="gpu_vram">--%</span></div>
+          <div class="bar-track"><div class="bar-fill fill-gpu" id="gpu_vram_bar"></div></div>
+        </div>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td class="cell">
+      <div class="panel">
+        <div class="panel-title title-ram">RAM</div>
+        <div class="gauge-wrap">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="43" fill="none" stroke="#1c2540" stroke-width="8"/>
+            <circle id="ram_gauge" cx="50" cy="50" r="43" fill="none" stroke="#c455ff" stroke-width="8"
+                    stroke-dasharray="270.2" stroke-dashoffset="270.2"
+                    transform="rotate(-90 50 50)" stroke-linecap="round"/>
+          </svg>
+          <div class="gauge-number" id="ram_load_text">--%</div>
+        </div>
+      </div>
+    </td>
+    <td class="cell">
+      <div class="panel">
+        <div class="panel-title title-board">Board &amp; Fans</div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">VRM</span><span class="bar-value" id="vrm_temp">--°C</span></div>
+          <div class="bar-track"><div class="bar-fill fill-board" id="vrm_temp_bar"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">PCH</span><span class="bar-value" id="pch_temp">--°C</span></div>
+          <div class="bar-track"><div class="bar-fill fill-board" id="pch_temp_bar"></div></div>
+        </div>
+        <!-- Корпусні вентилятори — рядки генеруються в JS з data.case_fans,
+             кількість і назви беруться з sensor_config.json (setup_wizard.py). -->
+        <div id="case_fans_container"></div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">&#8595; DOWN</span><span class="bar-value" id="net_down">-- Mbps</span></div>
+          <div class="bar-track"><div class="bar-fill fill-net" id="net_down_bar"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">&#8593; UP</span><span class="bar-value" id="net_up">-- Mbps</span></div>
+          <div class="bar-track"><div class="bar-fill fill-net" id="net_up_bar"></div></div>
+        </div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer" id="last_update">очікування даних...</div>
+
+<script type="text/javascript">
+  var CIRCUMFERENCE = 270.2;
+  var REFRESH_MS = 1500;
+
+  function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) { el.innerHTML = text; }
+  }
+
+  function clampPercent(v) {
+    if (v === null || v === undefined) { return 0; }
+    if (v > 100) { return 100; }
+    if (v < 0) { return 0; }
+    return v;
+  }
+
+  function setBar(barId, valueId, value, unit, percentForBar) {
+    var bar = document.getElementById(barId);
+    var valEl = document.getElementById(valueId);
+    if (bar) { bar.style.width = clampPercent(percentForBar) + "%"; }
+    if (valEl) { valEl.innerHTML = (value != null ? value : "--") + unit; }
+  }
+
+  function setBarColorByTemp(valueId, temp, warnAt, badAt) {
+    var el = document.getElementById(valueId);
+    if (!el) { return; }
+    el.className = "bar-value";
+    if (temp === null || temp === undefined) { return; }
+    if (temp >= badAt) { el.className += " bad"; }
+    else if (temp >= warnAt) { el.className += " warn"; }
+    else { el.className += " good"; }
+  }
+
+  function setGauge(gaugeId, textId, percent) {
+    var circle = document.getElementById(gaugeId);
+    var text = document.getElementById(textId);
+    var p = clampPercent(percent);
+    var offset = CIRCUMFERENCE - (CIRCUMFERENCE * p / 100);
+    if (circle) { circle.setAttribute("stroke-dashoffset", offset); }
+    if (text) { text.innerHTML = Math.round(p) + "%"; }
+  }
+
+  function tempToPercent(temp, maxTemp) {
+    if (temp === null || temp === undefined) { return 0; }
+    return clampPercent((temp / maxTemp) * 100);
+  }
+
+  function netToPercent(mbps, maxMbps) {
+    if (mbps === null || mbps === undefined) { return 0; }
+    var p = clampPercent((mbps / maxMbps) * 100);
+    if (mbps > 0 && p < 4) { p = 4; }  // мінімальна видима риска, щоб малий трафік не губився
+    return p;
+  }
+
+  // Малює рядок на кожен корпусний фен з data.case_fans — скільки прийшло,
+  // стільки й буде (1, 3, 5 — без обмеження). Підпис — з "label", заданого
+  // юзером у setup_wizard.py, а не з номера фізичного роз'єму.
+  function renderCaseFans(fans) {
+    var container = document.getElementById("case_fans_container");
+    if (!container) { return; }
+    fans = fans || [];
+    // Перебудовуємо DOM тільки якщо кількість фенів змінилась (рідкісний випадок —
+    // конфіг зазвичай стабільний між запитами).
+    if (container.children.length !== fans.length) {
+      var html = "";
+      for (var i = 0; i < fans.length; i++) {
+        html += '<div class="bar-row">' +
+                  '<div class="bar-top"><span class="bar-label" id="case_fan_label_' + i + '"></span>' +
+                  '<span class="bar-value" id="case_fan_val_' + i + '">--%</span></div>' +
+                  '<div class="bar-track"><div class="bar-fill ' + caseFanColorClass(fans[i].label) + '" id="case_fan_bar_' + i + '"></div></div>' +
+                '</div>';
+      }
+      container.innerHTML = html;
+    }
+    for (var j = 0; j < fans.length; j++) {
+      setText("case_fan_label_" + j, fans[j].label);
+      setBar("case_fan_bar_" + j, "case_fan_val_" + j, fans[j].percent, "%", fans[j].percent);
+    }
+  }
+
+  // Визначає колір бару за назвою фена: "Inlet"/"Intake" — холодний (вдув).
+  // "Exhaust" — теплий (витяжка), причому "Upper" гарячіший відтінок,
+  // "Lower" — трохи холодніший, щоб два exhaust-фени різнились візуально.
+  // Будь-яка інша назва — нейтральний дефолтний колір фена.
+  function caseFanColorClass(label) {
+    var l = (label || "").toLowerCase();
+    if (l.indexOf("intake") !== -1 || l.indexOf("inlet") !== -1) { return "fill-case-intake"; }
+    if (l.indexOf("exhaust") !== -1) {
+      if (l.indexOf("lower") !== -1) { return "fill-case-exhaust-lower"; }
+      return "fill-case-exhaust-upper"; // upper або exhaust без уточнення
+    }
+    return "fill-fan";
+  }
+
+  function updateDashboard(data) {
+    // CPU
+    setGauge("cpu_gauge", "cpu_load_text", data.cpu.load_percent);
+    setBar("cpu_temp_bar", "cpu_temp", data.cpu.temp_c, "°C", tempToPercent(data.cpu.temp_c, 90));
+    setBarColorByTemp("cpu_temp", data.cpu.temp_c, 65, 80);
+    setBar("cpu_fan_bar", "cpu_fan", data.cpu.fan_percent, "%", data.cpu.fan_percent);
+
+    // GPU
+    setGauge("gpu_gauge", "gpu_load_text", data.gpu.load_percent);
+    setBar("gpu_temp_bar", "gpu_temp", data.gpu.temp_c, "°C", tempToPercent(data.gpu.temp_c, 90));
+    setBarColorByTemp("gpu_temp", data.gpu.temp_c, 70, 83);
+    setBar("gpu_fan_bar", "gpu_fan", data.gpu.fan_percent, "%", data.gpu.fan_percent);
+    setBar("gpu_vram_bar", "gpu_vram", data.gpu.vram_percent, "%", data.gpu.vram_percent);
+
+    // RAM
+    setGauge("ram_gauge", "ram_load_text", data.ram.used_percent);
+
+    // Board
+    setBar("vrm_temp_bar", "vrm_temp", data.board.vrm_temp_c, "°C", tempToPercent(data.board.vrm_temp_c, 80));
+    setBarColorByTemp("vrm_temp", data.board.vrm_temp_c, 60, 75);
+    setBar("pch_temp_bar", "pch_temp", data.board.pch_temp_c, "°C", tempToPercent(data.board.pch_temp_c, 70));
+    setBarColorByTemp("pch_temp", data.board.pch_temp_c, 55, 70);
+
+    // Case fans — динамічний список
+    renderCaseFans(data.case_fans);
+
+    // Network
+    setBar("net_down_bar", "net_down", data.network.down_mbps, " Mbps", netToPercent(data.network.down_mbps, 50));
+    setBar("net_up_bar", "net_up", data.network.up_mbps, " Mbps", netToPercent(data.network.up_mbps, 50));
+
+    // Timestamp
+    var d = new Date();
+    var hh = d.getHours(); if (hh < 10) { hh = "0" + hh; }
+    var mm = d.getMinutes(); if (mm < 10) { mm = "0" + mm; }
+    var ss = d.getSeconds(); if (ss < 10) { ss = "0" + ss; }
+    setText("last_update", "оновлено " + hh + ":" + mm + ":" + ss);
+  }
+
+  function fetchData() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/data", true);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            updateDashboard(data);
+          } catch (e) {
+            setText("last_update", "помилка розбору даних");
+          }
+        } else {
+          setText("last_update", "немає з'єднання з сервером");
+        }
+      }
+    };
+    xhr.send(null);
+  }
+
+  fetchData();
+  setInterval(fetchData, REFRESH_MS);
+</script>
+
+</body>
+</html>
