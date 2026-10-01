@@ -14,10 +14,13 @@ ExtDash — Setup Wizard (Linux)
     python3 setup_wizard.py
 """
 
+import glob
 import json
 import os
+import re
 import subprocess
 import sys
+import time
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sensor_config.json")
 
@@ -66,6 +69,96 @@ def collect_readings(data, keyword_filters=None, exact_suffix=None):
     return results
 
 
+def _find_hwmon(chip_name):
+    base = chip_name.split("-")[0]
+    for d in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
+        try:
+            with open(os.path.join(d, "name")) as f:
+                if f.read().strip() == base:
+                    return d
+        except OSError:
+            continue
+    return None
+
+
+def _read_int(path):
+    with open(path) as f:
+        return int(f.read().strip())
+
+
+def _sudo_write(path, value):
+    subprocess.run(["sudo", "tee", path], input=f"{value}\n", text=True,
+                   stdout=subprocess.DEVNULL, check=True)
+
+
+def auto_detect_max_rpm(sensor):
+    """Повертає виміряний максимум RPM або None (тоді ручний ввід)."""
+    m = re.fullmatch(r"fan(\d+)_input", sensor["key"])
+    if not m:
+        return None
+    if any(w in sensor["label"].lower() for w in ("cpu", "pump")):
+        print("   CPU-вентилятор і помпу автотестом не чіпаємо, максимум вводиться вручну.")
+        return None
+    hw = _find_hwmon(sensor["chip"])
+    n = m.group(1)
+    if hw:
+        fan_path = os.path.join(hw, f"fan{n}_input")
+        pwm_path = os.path.join(hw, f"pwm{n}")
+        en_path = os.path.join(hw, f"pwm{n}_enable")
+    if not hw or not all(os.path.exists(x) for x in (fan_path, pwm_path, en_path)):
+        print("   Керування цим вентилятором (pwm) не знайдено, максимум вводиться вручну.")
+        return None
+
+    print("   Можна визначити максимум автоматично: вентилятор буде на кілька секунд")
+    print("   переведено на 100%, потім керування буде повернуто як було. Потрібен sudo.")
+    if input("   Виміряти автоматично? [y/N]: ").strip().lower() != "y":
+        return None
+    if subprocess.run(["sudo", "-v"]).returncode != 0:
+        print("   sudo недоступний, максимум вводиться вручну.")
+        return None
+
+    baseline = _read_int(fan_path)
+    old_pwm = _read_int(pwm_path)
+    old_en = _read_int(en_path)
+    result = None
+    try:
+        _sudo_write(en_path, 1)
+        _sudo_write(pwm_path, 255)
+        time.sleep(4)
+        samples = []
+        for _ in range(8):
+            samples.append(_read_int(fan_path))
+            last = samples[-3:]
+            if len(last) == 3 and min(last) > 0 and (max(last) - min(last)) <= 0.02 * max(last):
+                result = round(sum(last) / 3)
+                break
+            time.sleep(1)
+        else:
+            result = round(sum(samples[-3:]) / len(samples[-3:]))
+    except KeyboardInterrupt:
+        print("\n   Перервано, відновлюю керування.")
+        result = None
+    except Exception as e:
+        print(f"   Помилка під час тесту: {e}")
+        result = None
+    finally:
+        for path, val in ((pwm_path, old_pwm), (en_path, old_en)):
+            try:
+                _sudo_write(path, val)
+            except Exception as e:
+                print(f"   !! Не вдалося відновити {path}: {e}")
+                print(f"      Вручну: echo {val} | sudo tee {path}")
+
+    if result is None:
+        print("   Автовимір не завершено, максимум вводиться вручну.")
+        return None
+    if result <= 0 or result < baseline * 1.15:
+        print("   Оберти не зросли хоча б на 15%, результат недостовірний. Ручний ввід.")
+        return None
+    print(f"   Виміряний максимум: {result} RPM")
+    return result
+
+
 def choose_fan(items, prompt):
     """Обирає вентилятор і завжди просить RPM-калібрування (мін/макс).
     Дашборд рахує % з реальних обертів: (RPM - мін) / (макс - мін)."""
@@ -75,8 +168,11 @@ def choose_fan(items, prompt):
 
     print(f"   Поточне значення: {sensor['value']} RPM")
     print("   Вкажи діапазон обертів цього вентилятора:")
-    print("   мінімум — на холостому ході, максимум — на повній швидкості.")
-    print("   (Можна взяти зі специфікації, BIOS/UEFI або з іншої програми моніторингу.)")
+    print("   Мінімум — найнижчі оберти, на яких вентилятор стабільно крутиться.")
+    print("   Холостий хід може бути вищим за реальний мінімум, тому мінімум вводиться вручну")
+    print("   (зі специфікації, BIOS/UEFI або іншої програми моніторингу).")
+    print("   Максимум можна виміряти автоматично або ввести вручну.")
+    print("   Якщо мінімум невідомий, введи 0, тоді % буде від максимуму.")
 
     def ask_rpm(label):
         while True:
@@ -89,12 +185,14 @@ def choose_fan(items, prompt):
                 pass
             print("   Потрібно ціле число, 0 або більше.")
 
+    auto_max = auto_detect_max_rpm(sensor)
     while True:
         min_rpm = ask_rpm("Мінімальні")
-        max_rpm = ask_rpm("Максимальні")
+        max_rpm = auto_max if auto_max is not None else ask_rpm("Максимальні")
         if max_rpm > min_rpm:
             break
         print("   Максимум має бути більшим за мінімум, введи обидва значення ще раз.")
+        auto_max = None
 
     return {
         "chip": sensor["chip"],
