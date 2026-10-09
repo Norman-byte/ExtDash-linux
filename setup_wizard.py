@@ -269,6 +269,30 @@ def choose_network_interface():
     return candidates[choice - 1]
 
 
+def read_cpu_name():
+    """Назва CPU з /proc/cpuinfo (як є, для показу в wizard)."""
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.lower().startswith("model name"):
+                    return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return None
+
+
+def ask_display_name(title, auto_hint):
+    """Повертає (змінено, значення): (False, None) — залишити авто,
+    (True, "") — без назви, (True, "текст") — своя назва."""
+    print(f"   {title}: {auto_hint}")
+    raw = input("   Enter — залишити, або впиши свою, або '-' без назви: ").strip()
+    if raw == "":
+        return False, None
+    if raw == "-":
+        return True, ""
+    return True, raw
+
+
 def main():
     print("=" * 60)
     print("ExtDash — Майстер налаштування сенсорів (Linux)")
@@ -324,6 +348,16 @@ def main():
     print("Мережевий інтерфейс для моніторингу трафіку:")
     config["network_interface"] = choose_network_interface()
 
+    print("\n--- НАЗВИ НА ДАШБОРДІ ---")
+    cpu_raw = read_cpu_name()
+    changed, value = ask_display_name(
+        "CPU", f"авто з /proc/cpuinfo ({cpu_raw})" if cpu_raw else "авто (не вдалося визначити)")
+    if changed:
+        config["cpu_name"] = value
+    changed, value = ask_display_name("GPU", "авто (визначається з Glances)")
+    if changed:
+        config["gpu_name"] = value
+
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
@@ -341,6 +375,9 @@ def main():
                 continue
             for fan in val:
                 print(f"  case_fan '{fan['display_label']}': {fan['chip']} / {fan['key']}, RPM-діапазон {fan['min_rpm']}-{fan['max_rpm']}")
+            continue
+        if key in ("cpu_name", "gpu_name"):
+            print(f"  {key}: {val if val else '(без назви)'}")
             continue
         if val is None:
             print(f"  {key}: (пропущено)")

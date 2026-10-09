@@ -102,6 +102,9 @@
   .fill-board { background-color: #c9975a; }
   .fill-warm  { background-color: #d98a95; }
   .fill-net   { background-color: #2de0c8; }
+  .fill-swap  { background-color: #cfa83c; }
+  .name-line  { display: block; font-size: 14px; opacity: 0.7; text-transform: none; letter-spacing: 0; }
+  .panel { -webkit-box-sizing: border-box; box-sizing: border-box; }
   .footer {
     text-align: center;
     font-size: 12px;
@@ -118,8 +121,8 @@
 <table class="layout">
   <tr>
     <td class="cell">
-      <div class="panel">
-        <div class="panel-title title-cpu">CPU <span style="font-size: 14px; opacity: 0.7;">i5-14400F</span></div>
+      <div class="panel" id="panel_cpu">
+        <div class="panel-title title-cpu">CPU <span id="cpu_name" class="name-line"></span></div>
         <div class="gauge-wrap">
           <svg width="100" height="100" viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="43" fill="none" stroke="#1c2540" stroke-width="8"/>
@@ -129,19 +132,19 @@
           </svg>
           <div class="gauge-number" id="cpu_load_text">--%</div>
         </div>
-        <div class="bar-row">
+        <div class="bar-row" id="cpu_temp_row">
           <div class="bar-top"><span class="bar-label">TEMP</span><span class="bar-value" id="cpu_temp">--°C</span></div>
           <div class="bar-track"><div class="bar-fill fill-temp" id="cpu_temp_bar"></div></div>
         </div>
-        <div class="bar-row">
+        <div class="bar-row" id="cpu_fan_row">
           <div class="bar-top"><span class="bar-label">FAN</span><span class="bar-value" id="cpu_fan">--%</span></div>
           <div class="bar-track"><div class="bar-fill fill-fan" id="cpu_fan_bar"></div></div>
         </div>
       </div>
     </td>
-    <td class="cell">
-      <div class="panel">
-        <div class="panel-title title-gpu">GPU <span style="font-size: 14px; opacity: 0.7;">GTX-1060/6GB</span></div> 
+    <td class="cell" id="cell_gpu">
+      <div class="panel" id="panel_gpu">
+        <div class="panel-title title-gpu">GPU <span id="gpu_name" class="name-line"></span></div> 
         <div class="gauge-wrap">
           <svg width="100" height="100" viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="43" fill="none" stroke="#1c2540" stroke-width="8"/>
@@ -167,8 +170,8 @@
     </td>
   </tr>
   <tr>
-    <td class="cell">
-      <div class="panel">
+    <td class="cell" id="cell_ram">
+      <div class="panel" id="panel_ram">
         <div class="panel-title title-ram">RAM</div>
         <div class="gauge-wrap">
           <svg width="100" height="100" viewBox="0 0 100 100">
@@ -179,16 +182,20 @@
           </svg>
           <div class="gauge-number" id="ram_load_text">--%</div>
         </div>
+        <div class="bar-row" id="swap_row">
+          <div class="bar-top"><span class="bar-label">SWAP</span><span class="bar-value" id="swap_val">--%</span></div>
+          <div class="bar-track"><div class="bar-fill fill-swap" id="swap_bar"></div></div>
+        </div>
       </div>
     </td>
-    <td class="cell">
-      <div class="panel">
-        <div class="panel-title title-board">Board &amp; Fans</div>
-        <div class="bar-row">
+    <td class="cell" id="cell_board">
+      <div class="panel" id="panel_board">
+        <div class="panel-title title-board" id="board_title">Board &amp; Fans</div>
+        <div class="bar-row" id="vrm_row">
           <div class="bar-top"><span class="bar-label">VRM</span><span class="bar-value" id="vrm_temp">--°C</span></div>
           <div class="bar-track"><div class="bar-fill fill-board" id="vrm_temp_bar"></div></div>
         </div>
-        <div class="bar-row">
+        <div class="bar-row" id="pch_row">
           <div class="bar-top"><span class="bar-label">PCH</span><span class="bar-value" id="pch_temp">--°C</span></div>
           <div class="bar-track"><div class="bar-fill fill-board" id="pch_temp_bar"></div></div>
         </div>
@@ -246,10 +253,11 @@
   function setGauge(gaugeId, textId, percent) {
     var circle = document.getElementById(gaugeId);
     var text = document.getElementById(textId);
+    var empty = (percent === null || percent === undefined);
     var p = clampPercent(percent);
     var offset = CIRCUMFERENCE - (CIRCUMFERENCE * p / 100);
     if (circle) { circle.setAttribute("stroke-dashoffset", offset); }
-    if (text) { text.innerHTML = Math.round(p) + "%"; }
+    if (text) { text.innerHTML = empty ? "--%" : Math.round(p) + "%"; }
   }
 
   function tempToPercent(temp, maxTemp) {
@@ -304,7 +312,98 @@
     return "fill-fan";
   }
 
+  function setShown(id, flag) {
+    var el = document.getElementById(id);
+    if (el) { el.style.display = flag ? "" : "none"; }
+  }
+
+  // Порожня назва або null — span ховається.
+  function setName(id, name) {
+    var el = document.getElementById(id);
+    if (!el) { return; }
+    if (name) {
+      el.innerHTML = name;
+      el.style.display = "";
+    } else {
+      el.innerHTML = "";
+      el.style.display = "none";
+    }
+  }
+
+  // Лише для показу: "NVIDIA GeForce GTX 1060 6GB" -> "GTX 1060 6GB".
+  function shortGpuName(name) {
+    if (!name) { return name; }
+    return name.replace(/^NVIDIA\s+/i, "").replace(/^GeForce\s+/i, "");
+  }
+
+  // Без GPU: CPU | RAM зверху, Board на всю ширину внизу.
+  // Перебудова лише при зміні стану, не на кожному запиті.
+  var noGpuLayout = null;
+  function applyLayout(hasGpu) {
+    var wantNoGpu = !hasGpu;
+    if (noGpuLayout === wantNoGpu) { return; }
+    var panelGpu = document.getElementById("panel_gpu");
+    var panelRam = document.getElementById("panel_ram");
+    var cellGpu = document.getElementById("cell_gpu");
+    var cellRam = document.getElementById("cell_ram");
+    var cellBoard = document.getElementById("cell_board");
+    if (!panelGpu || !panelRam || !cellGpu || !cellRam || !cellBoard) { return; }
+    noGpuLayout = wantNoGpu;
+    if (wantNoGpu) {
+      panelGpu.style.display = "none";
+      cellGpu.appendChild(panelRam);
+      cellRam.style.display = "none";
+      cellBoard.setAttribute("colspan", "2");
+      cellBoard.style.width = "100%";
+    } else {
+      cellRam.appendChild(panelRam);
+      panelGpu.style.display = "";
+      cellRam.style.display = "";
+      cellBoard.setAttribute("colspan", "1");
+      cellBoard.style.width = "";
+    }
+  }
+
+  function equalizePair(a, b) {
+    if (!a || !b) { return; }
+    a.style.minHeight = "";
+    b.style.minHeight = "";
+    if (a.offsetHeight === 0 || b.offsetHeight === 0) { return; }
+    var h = Math.max(a.offsetHeight, b.offsetHeight);
+    a.style.minHeight = h + "px";
+    b.style.minHeight = h + "px";
+  }
+
+  function equalizeRows() {
+    var pCpu = document.getElementById("panel_cpu");
+    var pGpu = document.getElementById("panel_gpu");
+    var pRam = document.getElementById("panel_ram");
+    var pBoard = document.getElementById("panel_board");
+    if (noGpuLayout) {
+      if (pGpu) { pGpu.style.minHeight = ""; }
+      equalizePair(pCpu, pRam);
+      if (pBoard) { pBoard.style.minHeight = ""; }
+    } else {
+      equalizePair(pCpu, pGpu);
+      equalizePair(pRam, pBoard);
+    }
+  }
+
   function updateDashboard(data) {
+    var show = data.show || {};
+    var names = data.names || {};
+    var gpu = data.gpu || {};
+    applyLayout(show.gpu !== false);
+    setName("cpu_name", names.cpu);
+    setName("gpu_name", shortGpuName(names.gpu));
+    setShown("cpu_temp_row", show.cpu_temp !== false);
+    setShown("cpu_fan_row", show.cpu_fan !== false);
+    setShown("vrm_row", show.vrm !== false);
+    setShown("pch_row", show.pch !== false);
+    setShown("swap_row", show.swap !== false);
+    var fansCount = (data.case_fans || []).length;
+    setText("board_title", (show.vrm === false && show.pch === false && fansCount === 0) ? "Network" : "Board &amp; Fans");
+
     // CPU
     setGauge("cpu_gauge", "cpu_load_text", data.cpu.load_percent);
     setBar("cpu_temp_bar", "cpu_temp", data.cpu.temp_c, "°C", tempToPercent(data.cpu.temp_c, 90));
@@ -312,14 +411,15 @@
     setBar("cpu_fan_bar", "cpu_fan", data.cpu.fan_percent, "%", data.cpu.fan_percent);
 
     // GPU
-    setGauge("gpu_gauge", "gpu_load_text", data.gpu.load_percent);
-    setBar("gpu_temp_bar", "gpu_temp", data.gpu.temp_c, "°C", tempToPercent(data.gpu.temp_c, 90));
-    setBarColorByTemp("gpu_temp", data.gpu.temp_c, 70, 83);
-    setBar("gpu_fan_bar", "gpu_fan", data.gpu.fan_percent, "%", data.gpu.fan_percent);
-    setBar("gpu_vram_bar", "gpu_vram", data.gpu.vram_percent, "%", data.gpu.vram_percent);
+    setGauge("gpu_gauge", "gpu_load_text", gpu.load_percent);
+    setBar("gpu_temp_bar", "gpu_temp", gpu.temp_c, "°C", tempToPercent(gpu.temp_c, 90));
+    setBarColorByTemp("gpu_temp", gpu.temp_c, 70, 83);
+    setBar("gpu_fan_bar", "gpu_fan", gpu.fan_percent, "%", gpu.fan_percent);
+    setBar("gpu_vram_bar", "gpu_vram", gpu.vram_percent, "%", gpu.vram_percent);
 
     // RAM
     setGauge("ram_gauge", "ram_load_text", data.ram.used_percent);
+    setBar("swap_bar", "swap_val", data.ram.swap_percent, "%", data.ram.swap_percent);
 
     // Board
     setBar("vrm_temp_bar", "vrm_temp", data.board.vrm_temp_c, "°C", tempToPercent(data.board.vrm_temp_c, 80));
@@ -333,6 +433,8 @@
     // Network
     setBar("net_down_bar", "net_down", data.network.down_mbps, " Mbps", netToPercent(data.network.down_mbps, 50));
     setBar("net_up_bar", "net_up", data.network.up_mbps, " Mbps", netToPercent(data.network.up_mbps, 50));
+
+    equalizeRows();
 
     // Timestamp
     var d = new Date();

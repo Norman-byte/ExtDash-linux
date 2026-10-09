@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 PC Dashboard Server
-Об'єднує дані з Glances API (CPU/GPU/RAM/мережа) та власних bash-скриптів
-(вентилятори, VRM/PCH температури) в єдиний JSON для показу на телефоні.
+Об'єднує дані з Glances API (CPU/GPU/RAM/SWAP/мережа) та `sensors -j`
+(вентилятори, температури) в єдиний JSON для показу на телефоні.
 
 Запуск:
     python3 pc_dashboard_server.py
@@ -12,6 +12,7 @@ PC Dashboard Server
 
 import subprocess
 import json
+import re
 import time
 import os
 from flask import Flask, jsonify, Response, send_file
@@ -45,6 +46,41 @@ NETWORK_INTERFACE = SENSORS.get("network_interface", "enp2s0")
 CACHE_TTL = 1.0  # секунд — не смикати sensors/Glances частіше, ніж раз на секунду
 _cache = {"data": None, "ts": 0}
 _sensors_tree_cache = {"tree": None, "ts": 0}
+
+
+def detect_cpu_name():
+    """Назва процесора з /proc/cpuinfo, очищена від (R)/(TM), частоти, поколінь тощо.
+    Повертає None, якщо визначити не вдалося."""
+    raw = None
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.lower().startswith("model name"):
+                    raw = line.split(":", 1)[1].strip()
+                    break
+    except OSError:
+        return None
+    if not raw:
+        return None
+    name = re.sub(r"\((?:R|TM)\)", "", raw, flags=re.IGNORECASE)
+    name = re.sub(r"@\s*[\d.]+\s*GHz", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\b\d+(?:st|nd|rd|th)\s+Gen\b", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\b\d+-Core\b", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\b(?:Intel|AMD|CPU|Processor)\b", "", name, flags=re.IGNORECASE)
+    name = " ".join(name.split())
+    return name or None
+
+
+CPU_NAME_AUTO = detect_cpu_name()
+
+
+def configured_name(key, auto_value):
+    """Назва з sensor_config.json: поле відсутнє -> автоматична назва,
+    порожній рядок -> без назви, інакше -> те, що вписав користувач."""
+    if key in SENSORS:
+        return (SENSORS.get(key) or "").strip() or None
+    return auto_value
+
 
 def fetch_sensors_tree():
     """Завантажує повне дерево `sensors -j` (з коротким кешем)."""
@@ -115,10 +151,21 @@ def collect_data():
         "timestamp": time.time(),
         "cpu": {"load_percent": None, "temp_c": None, "fan_percent": None},
         "gpu": {"load_percent": None, "temp_c": None, "fan_percent": None, "vram_percent": None, "name": None},
-        "ram": {"used_percent": None},
+        "ram": {"used_percent": None, "swap_percent": None},
         "board": {"vrm_temp_c": None, "pch_temp_c": None},
         "case_fans": [],
         "network": {"down_mbps": None, "up_mbps": None},
+        # Які рядки/блоки показувати на дашборді: пропущені у wizard сенсори ховаються.
+        "show": {
+            "cpu_temp": bool(SENSORS.get("cpu_temp")),
+            "cpu_fan": bool(SENSORS.get("cpu_fan")),
+            "vrm": bool(SENSORS.get("vrm_temp")),
+            "pch": bool(SENSORS.get("pch_temp")),
+            "gpu": False,
+            "swap": False,
+        },
+        # Назви для заголовків (None -> заголовок без назви).
+        "names": {"cpu": None, "gpu": None},
     }
 
     # ── CPU (Glances) ──
@@ -132,20 +179,33 @@ def collect_data():
     # ── CPU fan % (обраний в setup_wizard.py, RPM → % через калібрування) ──
     data["cpu"]["fan_percent"] = get_fan_percent(SENSORS.get("cpu_fan"))
 
+    # ── Назва CPU ──
+    data["names"]["cpu"] = configured_name("cpu_name", CPU_NAME_AUTO)
+
     # ── GPU (Glances, NVML) ──
+    gpu_auto_name = None
     gpu_list = fetch_glances("gpu")
-    if gpu_list and len(gpu_list) > 0:
+    if isinstance(gpu_list, list) and len(gpu_list) > 0:
         gpu = gpu_list[0]
-        data["gpu"]["name"] = gpu.get("name")
+        gpu_auto_name = gpu.get("name")
+        data["show"]["gpu"] = True
+        data["gpu"]["name"] = gpu_auto_name
         data["gpu"]["load_percent"] = gpu.get("proc")
         data["gpu"]["temp_c"] = gpu.get("temperature")
         data["gpu"]["fan_percent"] = gpu.get("fan_speed")
         data["gpu"]["vram_percent"] = round(gpu.get("mem", 0), 1) if gpu.get("mem") is not None else None
+    data["names"]["gpu"] = configured_name("gpu_name", gpu_auto_name)
 
     # ── RAM (Glances) ──
     mem = fetch_glances("mem")
     if mem:
         data["ram"]["used_percent"] = round(mem.get("percent", 0), 1)
+
+    # ── SWAP (Glances) — показується лише якщо swap у системі є ──
+    swap = fetch_glances("memswap")
+    if isinstance(swap, dict) and (swap.get("total") or 0) > 0:
+        data["ram"]["swap_percent"] = round(swap.get("percent", 0) or 0, 1)
+        data["show"]["swap"] = True
 
     # ── VRM / PCH температури (обрані в setup_wizard.py) ──
     data["board"]["vrm_temp_c"] = get_sensor_value(SENSORS.get("vrm_temp"))
@@ -185,12 +245,12 @@ def get_data():
 
 @app.route("/")
 def index():
-    """Головна сторінка — HTML-дашборд для телефону (файл ~/ExtDash/index.html)."""
+    """Головна сторінка — HTML-дашборд для телефону (файл index.html поруч зі скриптом)."""
     html_path = os.path.join(BASE_DIR, "index.html")
     if os.path.exists(html_path):
         return send_file(html_path)
     return Response(
-        "<h3>index.html не знайдено в ~/ExtDash/</h3>"
+        "<h3>index.html не знайдено в теці проєкту</h3>"
         "<p>Дані все ще доступні тут: <a href='/data'>/data</a></p>",
         mimetype="text/html"
     )
