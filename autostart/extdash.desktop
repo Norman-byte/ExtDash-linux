@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=ExtDash
+Comment=Glances і сервер дашборда
+Exec=sh -c 'sleep 10; exec "$HOME/ExtDash/start_extdash.sh"'
+Terminal=false
+X-GNOME-Autostart-enabled=true
