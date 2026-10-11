@@ -145,6 +145,54 @@ def fetch_glances(endpoint):
     return None
 
 
+def read_system_info():
+    """Load average, uptime і зайнятість диска '/'. Усе зі стандартних джерел
+    Linux (/proc, os.statvfs): без Glances і без підпроцесів. Кожне поле
+    читається окремо, помилка в одному не зачіпає інші."""
+    info = {"load1": None, "load5": None, "load15": None,
+            "cores": os.cpu_count(), "uptime": None, "disk_percent": None}
+    try:
+        with open("/proc/loadavg", "r") as f:
+            parts = f.read().split()
+        l1, l5, l15 = (round(float(parts[i]), 2) for i in range(3))
+        info["load1"], info["load5"], info["load15"] = l1, l5, l15
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        with open("/proc/uptime", "r") as f:
+            secs = int(float(f.read().split()[0]))
+        days, rest = divmod(secs, 86400)
+        hours, rest = divmod(rest, 3600)
+        minutes = rest // 60
+        if days:
+            info["uptime"] = "%dd %02d:%02d" % (days, hours, minutes)
+        else:
+            info["uptime"] = "%d:%02d" % (hours, minutes)
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        st = os.statvfs("/")
+        used = (st.f_blocks - st.f_bfree) * st.f_frsize
+        avail = st.f_bavail * st.f_frsize
+        if used + avail > 0:
+            # Така сама формула, як у df: used / (used + avail).
+            info["disk_percent"] = round(used / (used + avail) * 100, 1)
+    except OSError:
+        pass
+    return info
+
+
+def system_block_enabled(gpu_present):
+    """Ключ "system_block" у sensor_config.json: true -> показувати, false -> ховати,
+    "auto" або ключа немає -> показувати лише коли GPU немає (там є вільне місце)."""
+    value = SENSORS.get("system_block", "auto")
+    if value is True:
+        return True
+    if value is False:
+        return False
+    return not gpu_present
+
+
 def collect_data():
     """Збирає всі дані з Glances і власних скриптів в один словник."""
     data = {
@@ -163,7 +211,11 @@ def collect_data():
             "pch": bool(SENSORS.get("pch_temp")),
             "gpu": False,
             "swap": False,
+            "system": False,
         },
+        # Блок System (load average, uptime, диск): заповнюється, лише якщо він показується.
+        "system": {"load1": None, "load5": None, "load15": None,
+                   "cores": None, "uptime": None, "disk_percent": None},
         # Назви для заголовків (None -> заголовок без назви).
         "names": {"cpu": None, "gpu": None},
     }
@@ -195,6 +247,11 @@ def collect_data():
         data["gpu"]["fan_percent"] = gpu.get("fan_speed")
         data["gpu"]["vram_percent"] = round(gpu.get("mem", 0), 1) if gpu.get("mem") is not None else None
     data["names"]["gpu"] = configured_name("gpu_name", gpu_auto_name)
+
+    # ── System: load average, uptime, диск (з /proc, без Glances) ──
+    if system_block_enabled(data["show"]["gpu"]):
+        data["show"]["system"] = True
+        data["system"] = read_system_info()
 
     # ── RAM (Glances) ──
     mem = fetch_glances("mem")

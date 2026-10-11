@@ -45,6 +45,7 @@
   .title-gpu   { color: #8bc34a; }
   .title-ram   { color: #cfa83c; }
   .title-board { color: #c97b6e; }
+  .title-system { color: #6ec9b8; }
   .gauge-wrap {
     position: relative;
     width: 100px;
@@ -209,6 +210,26 @@
         <div class="bar-row">
           <div class="bar-top"><span class="bar-label">&#8593; UP</span><span class="bar-value" id="net_up">-- Mbps</span></div>
           <div class="bar-track"><div class="bar-fill fill-net" id="net_up_bar"></div></div>
+        </div>
+      </div>
+    </td>
+  </tr>
+  <!-- System: load average, uptime, диск. Показується, коли сервер віддає show.system === true
+       (за замовчуванням лише на машинах без GPU, де є вільне місце). -->
+  <tr id="row_system" style="display: none;">
+    <td class="cell" colspan="2">
+      <div class="panel" id="panel_system">
+        <div class="panel-title title-system">System</div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">LOAD</span><span class="bar-value" id="load_val">--</span></div>
+          <div class="bar-track"><div class="bar-fill fill-cpu" id="load_bar"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">UPTIME</span><span class="bar-value" id="uptime_val">--</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="bar-label">DISK /</span><span class="bar-value" id="disk_val">--%</span></div>
+          <div class="bar-track"><div class="bar-fill fill-board" id="disk_bar"></div></div>
         </div>
       </div>
     </td>
@@ -433,6 +454,21 @@
     // Network
     setBar("net_down_bar", "net_down", data.network.down_mbps, " Mbps", netToPercent(data.network.down_mbps, 50));
     setBar("net_up_bar", "net_up", data.network.up_mbps, " Mbps", netToPercent(data.network.up_mbps, 50));
+
+    // System: лише коли сервер явно дозволяє (=== true), тому зі старим сервером блока не буде.
+    setShown("row_system", show.system === true);
+    if (show.system === true) {
+      var sys = data.system || {};
+      var hasLoad = (sys.load1 !== null && sys.load1 !== undefined &&
+                     sys.load5 !== null && sys.load5 !== undefined &&
+                     sys.load15 !== null && sys.load15 !== undefined);
+      var loadText = hasLoad ? (sys.load1.toFixed(2) + " " + sys.load5.toFixed(2) + " " + sys.load15.toFixed(2)) : "--";
+      // Смужка: навантаження за 1 хв відносно кількості ядер (100% = усі ядра зайняті).
+      var loadPct = (hasLoad && sys.cores > 0) ? (sys.load1 / sys.cores) * 100 : 0;
+      setBar("load_bar", "load_val", loadText, "", loadPct);
+      setText("uptime_val", (sys.uptime !== null && sys.uptime !== undefined) ? sys.uptime : "--");
+      setBar("disk_bar", "disk_val", sys.disk_percent, "%", sys.disk_percent);
+    }
 
     equalizeRows();
 
