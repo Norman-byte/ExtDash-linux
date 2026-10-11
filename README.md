@@ -1,168 +1,239 @@
-# ExtDash — другий екран для моніторингу ПК зі старого телефону
+# ExtDash — a second screen for monitoring your PC on an old phone
 
-Перетворює будь-який телефон із браузером на живий дашборд для Linux-ПК:
-CPU, GPU, RAM, температури материнської плати, корпусні вентилятори, мережа.
-Дані оновлюються в реальному часі, окремий застосунок на телефон не потрібен.
+**English** | [Українська](README.uk.md)
 
-Ця версія — **Linux**. Версія для Windows розробляється окремо.
+Turns any phone with a browser into a live dashboard for a Linux PC:
+CPU, GPU, RAM, SWAP, motherboard temperatures, case fans, network.
+Data updates in real time; no separate phone app is needed.
 
-## Скріншоти
+This version is for **Linux**. A Windows version is being developed separately.
+
+**Not sure about the installation steps?** At the bottom there is a prompt for an AI assistant: paste it into a chat and the assistant will walk you through step by step, safely (see "Installing with an AI assistant").
+
+## Screenshots
 
 | HTC One S (Android 4.1.1, 2012) | OnePlus 9 (LineageOS) |
 |---|---|
 | ![HTC One S](docs/screenshots/htc_one_s.png) | ![OnePlus 9](docs/screenshots/oneplus_9.png) |
 
-Той самий `index.html` відкривається і на телефоні 2012 року, і на сучасному.
+The same `index.html` opens on a phone from 2012 and on a modern one.
 
-## Як це працює
+## How it works
 
 ```
-Телефон (браузер) ──HTTP──► Flask-сервер (порт 8080)
-                              ├── Glances API (порт 61208): CPU, GPU, RAM, мережа
-                              └── lm-sensors (sensors -j): вентилятори, VRM, PCH
+Phone (browser) ──HTTP──► Flask server (port 8080)
+                            ├── Glances API (127.0.0.1:61208): CPU, GPU, RAM, SWAP, network
+                            └── lm-sensors (sensors -j): fans, VRM, PCH
 ```
 
-Сервер `pc_dashboard_server.py` об'єднує дані Glances і `sensors -j` в один
-JSON (`/data`) і віддає сторінку `index.html`. Які саме сенсори показувати,
-визначає `sensor_config.json`, який створює `setup_wizard.py`.
+The `pc_dashboard_server.py` server combines Glances data and `sensors -j`
+into a single JSON (`/data`) and serves the `index.html` page. Which sensors
+are shown is defined by `sensor_config.json`, which is created by
+`setup_wizard.py`.
 
-## Що показує дашборд
+## What the dashboard shows
 
-| Блок | Дані |
+| Block | Data |
 |---|---|
-| CPU | Навантаження %, температура, вентилятор % |
-| GPU | Навантаження %, температура, вентилятор %, VRAM % |
-| RAM | Використання % |
-| Board & Fans | VRM і PCH температури, довільна кількість корпусних вентиляторів, мережа (↓/↑) |
+| CPU | Load %, temperature, fan % |
+| GPU | Load %, temperature, fan %, VRAM % (shown only if a GPU is present) |
+| RAM | Usage %, with SWAP below it |
+| Board & Fans | VRM and PCH temperatures, any number of case fans |
+| Network | Network speed (↓/↑) |
 
-Відсоток вентилятора рахується з реальних обертів:
-`(RPM − мін) / (макс − мін)`. Тому мінімум і максимум для кожного
-вентилятора потрібно задати вручну (див. нижче).
+If there is no GPU, the GPU block is hidden: CPU and RAM sit side by side and
+the Board block takes the full width.
 
-## Вимоги
+You can set your own names for the CPU and GPU blocks (see "Installation",
+step 3).
 
-- Linux, Python 3.10+ (перевірено на Python 3.12, Linux Mint)
-- `lm-sensors` з налаштованими датчиками
-- Glances 4.x з веб-режимом, Flask
-- `nvidia-ml-py` — лише для відеокарт NVIDIA (GPU-дані Glances бере через нього)
-- ПК і телефон в одній локальній мережі
+Fan percentage is calculated from real RPM:
+`(RPM − min) / (max − min)`. This is why the minimum and maximum for each fan
+must be set manually (see below).
 
-Перевірені версії: Glances 4.5.6–4.5.7, Flask 3.1.3, nvidia-ml-py 13.610–13.615.
+## Requirements
 
-## Встановлення
+- Linux, Python 3.10+ (tested on Python 3.12, Linux Mint, and on Python 3.11.2, MX Linux 23.4)
+- `lm-sensors` with configured sensors
+- Glances 4.x with web mode, Flask
+- `nvidia-ml-py` — only for NVIDIA graphics cards (Glances reads GPU data through it)
+- PC and phone on the same local network
 
-1. Системні пакети і датчики:
+Tested versions: Glances 4.5.6–4.5.7, Flask 3.1.3, nvidia-ml-py 13.610–13.615.
+
+## Installation
+
+1. System packages and sensors:
 
    ```bash
-   sudo apt install lm-sensors
-   sudo sensors-detect      # відповідайте "yes" на типові питання
+   sudo apt install lm-sensors python3-venv
+   sudo sensors-detect      # answer "yes" to the typical questions
    ```
 
-2. Python-залежності:
-
-   ```bash
-   pip install --user "glances[web]" flask nvidia-ml-py
-   ```
-
-   На дистрибутивах із PEP 668 (Ubuntu 24.04, Mint 22) `pip` може відмовитися
-   ставити пакети у користувацький каталог. Тоді використайте віртуальне
-   середовище (встановлення перевірено саме так):
+2. Python dependencies in a virtual environment (also works on distributions
+   with PEP 668, where `pip` refuses to install packages system-wide):
 
    ```bash
    python3 -m venv ~/extdash-venv
-   ~/extdash-venv/bin/pip install "glances[web]" flask nvidia-ml-py
+   ~/extdash-venv/bin/pip install "glances[web]" flask
+   ~/extdash-venv/bin/pip install nvidia-ml-py    # NVIDIA graphics cards only
    ```
 
-   У цьому разі запускайте `~/extdash-venv/bin/glances -w` та
-   `~/extdash-venv/bin/python pc_dashboard_server.py`, а в systemd-сервісах
-   замініть шляхи в `ExecStart` на відповідні.
+   From here on, use `~/extdash-venv/bin/python` and
+   `~/extdash-venv/bin/glances` in all commands.
 
-3. Завантажте проєкт у `~/ExtDash` і запустіть майстер налаштування:
+3. Download the project into `~/ExtDash` and run the setup wizard:
 
    ```bash
    git clone https://github.com/Norman-byte/ExtDash-linux.git ~/ExtDash
    cd ~/ExtDash
-   python3 setup_wizard.py
+   ~/extdash-venv/bin/python setup_wizard.py
    ```
 
-   Майстер показує всі знайдені вентилятори й температури; ви вибираєте CPU-кулер, корпусні вентилятори, датчики CPU/VRM/PCH і мережевий
-   інтерфейс. Результат записується в `sensor_config.json` поруч зі скриптом.
+   The wizard lists all detected fans and temperatures; you choose the CPU
+   cooler, case fans, the CPU/VRM/PCH sensors and the network interface. The
+   result is written to `sensor_config.json` next to the script.
 
-   Вентилятори обирайте за назвою секції (`System Fan #N`), а не за порядковим номером у списку: після кожного вибору список перенумеровується.
+   - Choose fans by section name (`System Fan #N`), not by position in the
+     list: the list is renumbered after every selection.
+   - CPU/GPU names: Enter — the name is detected automatically (no key is
+     written to the file), your own name — type the text, `-` — the block has
+     no name.
+   - **Do not type Cyrillic in the wizard:** line editing in the terminal does
+     not work correctly with it. Put a Cyrillic name into `sensor_config.json`
+     by hand (UTF-8), for example `"cpu_name": "Ноут ASUS"`.
+   - If you do not have a sensor (for example VRM or PCH on a laptop), choose
+     0. The `acpitz` sensor is not a VRM or PCH.
+   - **The wizard overwrites `sensor_config.json`.** If you already have a
+     working configuration, make a copy of it first.
 
-4. Запуск вручну (для перевірки):
+4. Manual run (for testing):
 
    ```bash
-   glances -w &
-   python3 pc_dashboard_server.py
+   cd ~/ExtDash
+   ~/extdash-venv/bin/glances -w -B 127.0.0.1 &
+   ~/extdash-venv/bin/python pc_dashboard_server.py
    ```
 
-   Відкрийте на телефоні `http://<IP-вашого-ПК>:8080`.
-   Дані у форматі JSON: `http://<IP-вашого-ПК>:8080/data`.
+   `-B 127.0.0.1` makes Glances listen locally only (port 61208); the phone
+   connects only to the server on port 8080.
 
-## Вимірювання RPM для вентиляторів
+   Open `http://<your-PC-IP>:8080` on the phone.
+   JSON data: `http://<your-PC-IP>:8080/data`.
 
-Майстер запитує мінімальні та максимальні оберти кожного вентилятора.
-Значень за замовчуванням немає: діапазон залежить від моделі й розміру,
-а хибний діапазон дає хибні відсотки.
+   The server reads `sensor_config.json` only at startup: restart the server
+   after any configuration change.
 
-- **Максимум** — оберти на повній швидкості. Для корпусних вентиляторів
-  майстер може виміряти його сам: за вашою згодою (потрібен `sudo`)
-  вентилятор на кілька секунд переводиться на 100%, після чого попередній
-  режим керування повертається. Це працює, якщо драйвер надає керування
-  `pwmN` для цього вентилятора (перевірено на nct6687). Для CPU-вентилятора
-  і помпи автовимір не виконується: введіть максимум вручну (специфікація,
-  BIOS/UEFI або інша програма моніторингу). Якщо автовимір не вдався,
-  майстер теж попросить ввести значення вручну.
-- **Мінімум** — завжди вводиться вручну: найнижчі оберти, на яких
-  вентилятор стабільно крутиться. Оберти на холостому ході можуть бути
-  вищими за реальний мінімум, тому брати їх не варто. Джерела:
-  специфікація, BIOS/UEFI або інша програма моніторингу. Якщо мінімум
-  невідомий, введіть 0, тоді відсоток рахується від максимуму. Для
-  вентиляторів, що зупиняються, мінімум теж 0.
-- Поточні оберти видно у списку майстра та у виводі `sensors`.
+## Measuring fan RPM
 
-Не визначайте мінімум самостійним зниженням PWM: деякі вентилятори
-зупиняються і самі не запускаються.
+The wizard asks for the minimum and maximum RPM of each fan. There are no
+defaults: the range depends on the model and size, and a wrong range gives
+wrong percentages.
 
-Максимум має бути більшим за мінімум.
+- **Maximum** — RPM at full speed. For case fans the wizard can measure it
+  itself: with your consent (`sudo` is required) the fan is set to 100% for a
+  few seconds, after which the previous control mode is restored. This works
+  if the driver exposes `pwmN` control for that fan (tested on nct6687). For
+  the CPU fan and the pump, auto-measurement is not performed: enter the
+  maximum manually (specification, BIOS/UEFI or another monitoring program).
+  If auto-measurement fails, the wizard also asks you to enter the value
+  manually.
+- **Minimum** — always entered manually: the lowest RPM at which the fan
+  spins stably. Idle RPM can be higher than the real minimum, so do not use
+  it. Sources: specification, BIOS/UEFI or another monitoring program. If the
+  minimum is unknown, enter 0 and the percentage is calculated from the
+  maximum. For fans that stop completely, the minimum is also 0.
+- Current RPM is shown in the wizard's list and in the output of `sensors`.
 
-## Автозапуск (systemd, режим користувача)
+Do not determine the minimum by lowering PWM yourself: some fans stop and do
+not start again on their own.
 
-У теці `systemd/` лежать шаблони сервісів. Вони припускають, що проєкт
-знаходиться в `~/ExtDash`, а Glances — у `~/.local/bin/glances`.
-Якщо це не так, виправте шляхи в `ExecStart`.
+The maximum must be greater than the minimum.
+
+## Autostart
+
+Choose the option that matches your init system (`ps -p 1 -o comm=`).
+
+### A) systemd (user mode)
+
+The `systemd/` folder contains service templates. They assume the project is
+in `~/ExtDash`, and Glances and Python are in the `~/extdash-venv` venv. If
+that is not the case, fix the paths in `ExecStart`.
 
 ```bash
 mkdir -p ~/.config/systemd/user
 cp systemd/*.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now glances-extdash.service pc-dashboard-extdash.service
-loginctl enable-linger "$USER"     # щоб сервіси стартували без входу в систему
+loginctl enable-linger "$USER"     # so the services start without a login
 ```
 
-Перевірка: `systemctl --user status pc-dashboard-extdash.service`.
+Check: `systemctl --user status pc-dashboard-extdash.service`.
 
-## Безпека
+### B) without systemd (sysvinit and others)
 
-Сервер слухає на `0.0.0.0:8080` **без автентифікації** і віддає дані про
-апаратну частину ПК. Використовуйте лише в довіреній локальній мережі й не
-відкривайте порт назовні.
+The `start_extdash.sh` script starts Glances (with `-B 127.0.0.1`) and the
+server, and the `autostart/extdash.desktop` file calls it when you log in to
+a graphical session (with a 10-second delay). The project must be in
+`~/ExtDash`.
 
-## Температура GPU на Linux
+```bash
+mkdir -p ~/.config/autostart
+cp ~/ExtDash/autostart/extdash.desktop ~/.config/autostart/
+```
 
-Linux-версія показує температуру **ядра (Core)**. NVIDIA не надає
-hotspot/junction-температуру через Linux-драйвери ні в `nvidia-smi`, ні в
-NVML. Реальна температура кристала в найгарячішій точці зазвичай на
-10–20 °C вища, тому залишайте запас до теплового ліміту виробника.
+Logs are written to `~/.cache/extdash/`.
 
-## Ліцензія
+**Warning:** `start_extdash.sh` stops all running `glances -w` and
+`pc_dashboard_server.py` processes and then starts them again. Do not run it
+on a machine where a systemd service or another working instance is running.
 
-MIT — використовуйте, змінюйте, поширюйте вільно.
+## Security
 
-## Про розробку
+The server listens on `0.0.0.0:8080` **without authentication** and exposes
+information about the PC's hardware. Use it only on a trusted local network
+and do not expose the port to the internet.
 
-Проєкт створено в парі з Claude (Anthropic): від реанімації старого
-HTC One S до Linux-бекенду. Усе розбиралося й тестувалося крок за кроком,
-включно з реальними глухими кутами (обмеження NVIDIA-драйверів на Linux,
-розбіжності між PWM і реальними обертами) та їхніми практичними рішеннями.
+Glances listens only on `127.0.0.1:61208` and is not reachable from outside.
+
+If `ufw` is enabled on the PC, allow port 8080 only from your own subnet
+(substitute yours):
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 8080 proto tcp
+```
+
+## Limitations
+
+- The set of sensors depends on the hardware. For example, laptops usually
+  have no `cpu_fan`, GPU, VRM or PCH. The `acpitz` sensor is not a VRM or PCH.
+- If there is no GPU, the GPU block is hidden.
+- The server reads `sensor_config.json` only at startup.
+
+## GPU temperature on Linux
+
+The Linux version shows the **core (Core)** temperature. NVIDIA does not
+expose hotspot/junction temperature through Linux drivers, neither in
+`nvidia-smi` nor in NVML. The real die temperature at the hottest point is
+usually 10–20 °C higher, so leave a margin below the manufacturer's thermal
+limit.
+
+## Installing with an AI assistant
+
+If you are not sure about a step, use the ready-made prompt:
+[docs/INSTALL_PROMPT.md](docs/INSTALL_PROMPT.md). Copy its contents and paste
+them into a chat with an AI assistant (Claude or another). The assistant will
+identify your hardware, ask what you want to see on the dashboard, and guide
+you step by step: one command at a time, with a rollback and a backup before
+any edits.
+
+## License
+
+MIT — use, modify and distribute freely.
+
+## About the development
+
+The project was built in partnership with Claude (Anthropic): from reviving an
+old HTC One S to the Linux backend. Everything was investigated and tested
+step by step, including real dead ends (NVIDIA driver limitations on Linux,
+discrepancies between PWM and real RPM) and their practical solutions.
