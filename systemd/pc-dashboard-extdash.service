@@ -4,7 +4,8 @@ After=network.target glances-extdash.service
 Requires=glances-extdash.service
 
 [Service]
-ExecStart=/usr/bin/python3 %h/ExtDash/pc_dashboard_server.py
+# Шлях до Python: за README це venv ~/extdash-venv. Якщо залежності встановлено інакше, змініть шлях.
+ExecStart=%h/extdash-venv/bin/python %h/ExtDash/pc_dashboard_server.py
 Restart=on-failure
 RestartSec=5
 
