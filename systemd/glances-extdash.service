@@ -3,7 +3,8 @@ Description=Glances Web Server (ExtDash)
 After=network.target
 
 [Service]
-ExecStart=%h/.local/bin/glances -w
+# Шлях до glances: за README це venv ~/extdash-venv. Якщо Glances встановлено інакше, змініть шлях.
+ExecStart=%h/extdash-venv/bin/glances -w -B 127.0.0.1
 Restart=on-failure
 RestartSec=5
 
