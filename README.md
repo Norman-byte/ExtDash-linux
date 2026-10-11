@@ -38,11 +38,13 @@ are shown is defined by `sensor_config.json`, which is created by
 | CPU | Load %, temperature, fan % |
 | GPU | Load %, temperature, fan %, VRAM % (shown only if a GPU is present) |
 | RAM | Usage %, with SWAP below it |
-| Board & Fans | VRM and PCH temperatures, any number of case fans |
-| Network | Network speed (↓/↑) |
+| Board & Fans | VRM and PCH temperatures, any number of case fans, network speed (↓/↑) |
 
 If there is no GPU, the GPU block is hidden: CPU and RAM sit side by side and
-the Board block takes the full width.
+the bottom block takes the full width.
+
+If no VRM, PCH or fans are configured (for example on a laptop), the bottom
+block is titled **Network** and shows only the network speed.
 
 You can set your own names for the CPU and GPU blocks (see "Installation",
 step 3).
@@ -66,7 +68,7 @@ Tested versions: Glances 4.5.6–4.5.7, Flask 3.1.3, nvidia-ml-py 13.610–13.61
 1. System packages and sensors:
 
    ```bash
-   sudo apt install lm-sensors python3-venv
+   sudo apt install lm-sensors python3-venv curl
    sudo sensors-detect      # answer "yes" to the typical questions
    ```
 
