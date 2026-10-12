@@ -39,6 +39,7 @@ are shown is defined by `sensor_config.json`, which is created by
 | GPU | Load %, temperature, fan %, VRAM % (shown only if a GPU is present) |
 | RAM | Usage %, with SWAP below it |
 | Board & Fans | VRM and PCH temperatures, any number of case fans, network speed (↓/↑) |
+| System | Load average (1/5/15 min), uptime, disk usage of `/` (shown only without a GPU, see `system_block`) |
 
 If there is no GPU, the GPU block is hidden: CPU and RAM sit side by side and
 the bottom block takes the full width.
@@ -101,6 +102,9 @@ Tested versions: Glances 4.5.6–4.5.7, Flask 3.1.3, nvidia-ml-py 13.610–13.61
    - CPU/GPU names: Enter — the name is detected automatically (no key is
      written to the file), your own name — type the text, `-` — the block has
      no name.
+  - **System block:** Enter — automatic (shown only when there is no GPU, no
+    key is written), `y` — always show, `n` — never show (the wizard writes
+    `"system_block": true` or `false`).
    - **Do not type Cyrillic in the wizard:** line editing in the terminal does
      not work correctly with it. Put a Cyrillic name into `sensor_config.json`
      by hand (UTF-8), for example `"cpu_name": "Ноут ASUS"`.
@@ -210,6 +214,9 @@ sudo ufw allow from 192.168.1.0/24 to any port 8080 proto tcp
 - The set of sensors depends on the hardware. For example, laptops usually
   have no `cpu_fan`, GPU, VRM or PCH. The `acpitz` sensor is not a VRM or PCH.
 - If there is no GPU, the GPU block is hidden.
+- The System block (load average, uptime, disk `/`) is shown only when there is
+  no GPU. Set `"system_block": true` or `false` in `sensor_config.json` to
+  override; no key or `"auto"` means automatic.
 - The server reads `sensor_config.json` only at startup.
 
 ## GPU temperature on Linux
