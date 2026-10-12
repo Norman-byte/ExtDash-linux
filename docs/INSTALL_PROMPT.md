@@ -44,6 +44,10 @@ Ask which blocks I want: CPU, GPU, RAM, SWAP, Board/System, case fans,
 network. Tell me honestly which of them my hardware cannot provide
 (for example laptops often have no cpu_fan, GPU, VRM or PCH; acpitz is not
 VRM/PCH, choose 0 in the wizard for those).
+System block (load average, uptime, disk usage of "/"): by default it is
+shown only on machines without a GPU. The wizard asks about it (Enter =
+auto, y = always, n = never). In sensor_config.json the key is
+"system_block": absent or "auto" = automatic, true = always, false = never.
 
 STEP 2. INSTALL
 - Packages with my distribution's package manager (apt/dnf/pacman).

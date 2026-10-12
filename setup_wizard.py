@@ -293,6 +293,22 @@ def ask_display_name(title, auto_hint):
     return True, raw
 
 
+def ask_system_block():
+    """Повертає (змінено, значення): (False, None) — авто (ключ не записується),
+    (True, True) — завжди показувати, (True, False) — ніколи не показувати."""
+    print("   Блок System (load average, uptime, диск) під блоком Board.")
+    print("   Авто: показується лише на машинах без GPU.")
+    while True:
+        raw = input("   Показувати блок System? Enter — авто, y — так, n — ні: ").strip().lower()
+        if raw == "":
+            return False, None
+        if raw in ("y", "yes", "т", "так"):
+            return True, True
+        if raw in ("n", "no", "н", "ні"):
+            return True, False
+        print("   Введи Enter, y або n.")
+
+
 def main():
     print("=" * 60)
     print("ExtDash — Майстер налаштування сенсорів (Linux)")
@@ -358,6 +374,11 @@ def main():
     if changed:
         config["gpu_name"] = value
 
+    print("\n--- БЛОК SYSTEM ---")
+    changed, value = ask_system_block()
+    if changed:
+        config["system_block"] = value
+
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
@@ -379,6 +400,9 @@ def main():
         if key in ("cpu_name", "gpu_name"):
             print(f"  {key}: {val if val else '(без назви)'}")
             continue
+        if key == "system_block":
+            print(f"  system_block: {'завжди показувати' if val else 'ніколи не показувати'}")
+            continue
         if val is None:
             print(f"  {key}: (пропущено)")
         elif "min_rpm" in val:
@@ -389,6 +413,8 @@ def main():
     print("\n⚠️  Примітка: GPU-дані (навантаження/температура/VRAM/вентилятор)")
     print("   на Linux беруться напряму з Glances (через nvidia-ml-py),")
     print("   тому в цьому майстрі не налаштовуються окремо.")
+    if "system_block" not in config:
+        print("   Блок System: режим авто (ключ system_block не записано).")
 
 
 if __name__ == "__main__":
