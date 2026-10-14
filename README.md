@@ -12,9 +12,9 @@ This version is for **Linux**. A Windows version is being developed separately.
 
 ## Screenshots
 
-| HTC One S (Android 4.1.1, 2012) | OnePlus 9 (LineageOS) |
-|---|---|
-| ![HTC One S](docs/screenshots/htc_one_s.png) | ![OnePlus 9](docs/screenshots/oneplus_9.png) |
+| HTC One S (Android 4.1.1, 2012) | OnePlus 9 (LineageOS) | Laptop without GPU (Core2 Duo P7450) |
+|---|---|---|
+| ![HTC One S](docs/screenshots/htc_one_s.png) | ![OnePlus 9](docs/screenshots/oneplus_9.png) | ![Laptop without GPU](docs/screenshots/laptop_no_gpu.png) |
 
 The same `index.html` opens on a phone from 2012 and on a modern one.
 

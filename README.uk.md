@@ -12,9 +12,9 @@ CPU, GPU, RAM, SWAP, температури материнської плати,
 
 ## Скріншоти
 
-| HTC One S (Android 4.1.1, 2012) | OnePlus 9 (LineageOS) |
-|---|---|
-| ![HTC One S](docs/screenshots/htc_one_s.png) | ![OnePlus 9](docs/screenshots/oneplus_9.png) |
+| HTC One S (Android 4.1.1, 2012) | OnePlus 9 (LineageOS) | Ноутбук без GPU (Core2 Duo P7450) |
+|---|---|---|
+| ![HTC One S](docs/screenshots/htc_one_s.png) | ![OnePlus 9](docs/screenshots/oneplus_9.png) | ![Ноутбук без GPU](docs/screenshots/laptop_no_gpu.png) |
 
 Той самий `index.html` відкривається і на телефоні 2012 року, і на сучасному.
 
